@@ -34,7 +34,6 @@ with col_cen:
 
 st.markdown("<h1 style='text-align: center;'>Creador de plantilla NOVATRANS</h1>", unsafe_allow_html=True)
 st.markdown("### <div style='text-align: center;'>Herramienta para adaptar Hoja de Cálculo descargada de CEPSA a la plantilla de importación de NOVATRANS</div>", unsafe_allow_html=True)
-st.write("---")
 st.write("Sube el archivo Excel descargado de la web de Moeve y la plantilla de Novatrans para pasar los datos adaptados, de una hoja a otra")
 
 # --- 4. FUNCIÓN DE PROCESAMIENTO ---
