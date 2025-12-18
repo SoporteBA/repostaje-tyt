@@ -6,7 +6,7 @@ from datetime import datetime
 
 # --- 1. CONFIGURACIÓN DE LA PÁGINA ---
 st.set_page_config(
-    page_title="Creador NOVATRANS",
+    page_title="T&T | MOEVE > NOVATRANS",
     page_icon="🚛",
     layout="centered"
 )
@@ -175,7 +175,7 @@ else:
 
 st.markdown(
     """<div style='position: fixed; bottom: 10px; width: 100%; text-align: center; color: #555; font-size: 12px;'>
-        Herramienta interna para Novatrans
+        Herramienta interna para Tránsitos y Transportes Logísticos
     </div>""", 
     unsafe_allow_html=True
 )
