@@ -6,43 +6,34 @@ from datetime import datetime
 
 # --- 1. CONFIGURACIÓN DE LA PÁGINA ---
 st.set_page_config(
-    page_title="Gestor CEPSA",
-    page_icon="⛽",
+    page_title="Creador NOVATRANS",
+    page_icon="🚛",
     layout="centered"
 )
 
-# --- 2. TRUCO CSS PARA TRADUCIR LA INTERFAZ ---
-# Esto oculta los textos en inglés de Streamlit y pone los nuestros
+# --- 2. ESTILOS CSS (TRUCO PARA ESPAÑOL) ---
 st.markdown("""
     <style>
-    /* Ocultar el texto de "Limit 200MB..." */
-    [data-testid="stFileUploader"] small {
-        display: none;
-    }
-    /* Ocultar el texto "Drag and drop file here" */
-    [data-testid="stFileUploaderDropzone"] div div::before {
-        content: "Arrastra y suelta tu archivo aquí";
-    }
-    /* Ajustar el botón de "Browse files" (opcional, visual) */
-    button[kind="secondary"] {
-        background-color: #f0f2f6;
-        border: 1px solid #d6d6d6;
-    }
+    /* Ocultar textos en inglés del uploader */
+    [data-testid="stFileUploader"] small { display: none; }
+    [data-testid="stFileUploaderDropzone"] div div::before { content: "Arrastra y suelta tu archivo aquí"; }
+    button[kind="secondary"] { background-color: #f0f2f6; border: 1px solid #d6d6d6; }
     </style>
 """, unsafe_allow_html=True)
 
-st.title("⛽ Gestor de Transacciones CEPSA")
-st.markdown("### Herramienta de importación automática")
-st.write("Sube los archivos Excel originales para generar el formato compatible.")
+# --- TEXTOS PERSONALIZADOS ---
+st.title("Creador de plantilla NOVATRANS")
+st.markdown("### Herramienta para adaptar Hoja de Cálculo descargada de CEPSA a la plantilla de importación de NOVATRANS")
+st.write("Sube el archivo Excel descargado de la web de Moeve y la plantilla de Novatrans para pasar los datos adaptados, de una hoja a otra")
 st.write("---")
 
-# --- 3. FUNCIÓN DE PROCESAMIENTO (Tu lógica intacta) ---
+# --- 3. FUNCIÓN DE PROCESAMIENTO (Lógica intacta) ---
 def procesar_archivos(plantilla, datos):
     # Leer datos
     try:
         df_origen = pd.read_excel(datos, header=2, dtype={'Tarjeta': str})
     except:
-        st.error("❌ Error: No se puede leer 'transacciones-cepsa'. Asegúrate de que el encabezado está en la fila 3.")
+        st.error("❌ Error: No se puede leer el archivo de Moeve/Cepsa. Verifica que el encabezado esté en la fila 3.")
         return None
 
     # Leer plantilla
@@ -50,7 +41,7 @@ def procesar_archivos(plantilla, datos):
         wb_destino = load_workbook(plantilla)
         ws_destino = wb_destino.active
     except:
-        st.error("❌ Error: No se puede leer la plantilla 'ImportadorGenerico'.")
+        st.error("❌ Error: No se puede leer la plantilla de Novatrans.")
         return None
 
     # Limpiar plantilla (filas 2 en adelante)
@@ -138,11 +129,10 @@ def procesar_archivos(plantilla, datos):
 
         fila_destino += 1
 
-    # Limpiar barra al final
+    # Finalización
     texto_estado.text("✅ ¡Procesamiento completado!")
     barra.empty()
-
-    # Guardar en memoria
+    
     output = io.BytesIO()
     wb_destino.save(output)
     output.seek(0)
@@ -154,43 +144,42 @@ col1, col2 = st.columns(2)
 with col1:
     st.info("📂 Paso 1")
     uploaded_plantilla = st.file_uploader(
-        "Sube 'ImportadorGenerico.xlsx'", 
+        "Sube Plantilla Novatrans", 
         type="xlsx", 
-        help="Arrastra aquí el archivo plantilla vacío."
+        help="Archivo plantilla vacío."
     )
 
 with col2:
     st.info("📄 Paso 2")
     uploaded_datos = st.file_uploader(
-        "Sube 'transacciones-cepsa.xlsx'", 
+        "Sube Excel de Moeve/Cepsa", 
         type="xlsx",
-        help="Arrastra aquí el archivo con los datos de CEPSA."
+        help="Archivo con los datos descargados."
     )
 
 st.write("---")
 
-# Botón de acción
 if uploaded_plantilla and uploaded_datos:
-    if st.button("🚀 Procesar y Generar Archivo", type="primary"):
-        with st.spinner('⏳ Leyendo y transformando datos... por favor espera.'):
+    if st.button("🚀 Crear Plantilla Importación", type="primary"):
+        with st.spinner('⏳ Adaptando datos para Novatrans...'):
             archivo_final = procesar_archivos(uploaded_plantilla, uploaded_datos)
             
             if archivo_final:
                 st.success("¡Archivo generado correctamente!")
                 st.download_button(
-                    label="⬇️ Descargar Excel Relleno",
+                    label="⬇️ Descargar Archivo para Novatrans",
                     data=archivo_final,
                     file_name="ImportadorGenerico_RELLENO.xlsx",
                     mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
                 )
 else:
-    st.warning("⚠️ Por favor, sube ambos archivos para activar el botón de procesar.")
+    st.warning("⚠️ Por favor, sube ambos archivos para activar el proceso.")
 
 # Pie de página
 st.markdown(
     """
     <div style='position: fixed; bottom: 0; width: 100%; text-align: center; color: grey; font-size: 12px;'>
-        Herramienta interna de gestión de repostajes
+        Herramienta interna para Novatrans
     </div>
     """, 
     unsafe_allow_html=True
