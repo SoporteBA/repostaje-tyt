@@ -11,23 +11,33 @@ st.set_page_config(
     layout="centered"
 )
 
-# --- 2. ESTILOS CSS (TRUCO PARA ESPAÑOL) ---
+# --- 2. ESTILOS CSS ---
 st.markdown("""
     <style>
     /* Ocultar textos en inglés del uploader */
     [data-testid="stFileUploader"] small { display: none; }
     [data-testid="stFileUploaderDropzone"] div div::before { content: "Arrastra y suelta tu archivo aquí"; }
-    button[kind="secondary"] { background-color: #f0f2f6; border: 1px solid #d6d6d6; }
+    button[kind="secondary"] { background-color: #fbfbfb; border: 1px solid #d6d6d6; }
     </style>
 """, unsafe_allow_html=True)
 
-# --- TEXTOS PERSONALIZADOS ---
-st.title("Creador de plantilla NOVATRANS")
-st.markdown("### Herramienta para adaptar Hoja de Cálculo descargada de CEPSA a la plantilla de importación de NOVATRANS")
-st.write("Sube el archivo Excel descargado de la web de Moeve y la plantilla de Novatrans para pasar los datos adaptados, de una hoja a otra")
-st.write("---")
+# --- 3. LOGO Y TÍTULOS ---
+# Usamos 3 columnas para centrar el logo: vacía | logo | vacía
+col_izq, col_cen, col_der = st.columns([1, 2, 1])
 
-# --- 3. FUNCIÓN DE PROCESAMIENTO (Lógica intacta) ---
+with col_cen:
+    # Intenta mostrar el logo, si no está subido aún, no falla
+    try:
+        st.image("tyt_logo_trans.png", use_container_width=True)
+    except:
+        st.warning("⚠️ Sube la imagen 'tyt_logo_trans.png' a GitHub para ver el logo aquí.")
+
+st.markdown("<h1 style='text-align: center;'>Creador de plantilla NOVATRANS</h1>", unsafe_allow_html=True)
+st.markdown("### <div style='text-align: center;'>Herramienta para adaptar Hoja de Cálculo descargada de CEPSA a la plantilla de importación de NOVATRANS</div>", unsafe_allow_html=True)
+st.write("---")
+st.write("Sube el archivo Excel descargado de la web de Moeve y la plantilla de Novatrans para pasar los datos adaptados, de una hoja a otra")
+
+# --- 4. FUNCIÓN DE PROCESAMIENTO ---
 def procesar_archivos(plantilla, datos):
     # Leer datos
     try:
@@ -44,7 +54,7 @@ def procesar_archivos(plantilla, datos):
         st.error("❌ Error: No se puede leer la plantilla de Novatrans.")
         return None
 
-    # Limpiar plantilla (filas 2 en adelante)
+    # Limpiar plantilla
     max_row = ws_destino.max_row
     max_col = ws_destino.max_column
     if max_row > 1:
@@ -52,11 +62,11 @@ def procesar_archivos(plantilla, datos):
             for cell in row:
                 cell.value = None
 
-    # Configuración de variables
+    # Configuración
     fila_destino = 2
     matriculas_excluidas = ["TJT-001", "TJT-002", "TJT-003", "TJT-004", "TJT-005", "TJT-006", "TJT-007"]
 
-    # Barra de progreso visual
+    # Barra de progreso
     texto_estado = st.empty()
     barra = st.progress(0)
     total_filas = len(df_origen)
@@ -67,12 +77,11 @@ def procesar_archivos(plantilla, datos):
         barra.progress((index + 1) / total_filas)
         texto_estado.text(f"Procesando fila {index + 1} de {total_filas} ({porcentaje}%)")
 
-        # 1. Filtro Matrícula
+        # Filtros y lógica
         matricula_actual = str(row['Matricula']).strip()
         if matricula_actual in matriculas_excluidas:
             continue
 
-        # 2. Procesar Fechas
         fecha_hora_raw = row['Fecha y hora']
         val_fecha = None
         val_hora = None
@@ -88,11 +97,9 @@ def procesar_archivos(plantilla, datos):
             except:
                 pass 
 
-        # 3. Limpieza Tarjeta
         tarjeta_valor = str(row['Tarjeta']) if pd.notnull(row['Tarjeta']) else ""
         if tarjeta_valor.endswith('.0'): tarjeta_valor = tarjeta_valor[:-2]
 
-        # 4. Traducción Productos
         concepto_original = df_origen.iloc[index, 10]
         producto_final = concepto_original
         if pd.notnull(concepto_original):
@@ -103,7 +110,7 @@ def procesar_archivos(plantilla, datos):
             elif nombre_concepto == "AUTOPISTAS DE PEAJE": producto_final = "Peaje"
             elif nombre_concepto == "GEST. SERV. AUTOP. ESPAÑA": producto_final = "Otros"
 
-        # 5. Escribir en Excel Destino
+        # Escribir
         ws_destino.cell(row=fila_destino, column=1).value = row['Matricula']
         ws_destino.cell(row=fila_destino, column=2).value = producto_final
         ws_destino.cell(row=fila_destino, column=3).value = df_origen.iloc[index, 4]
@@ -129,7 +136,6 @@ def procesar_archivos(plantilla, datos):
 
         fila_destino += 1
 
-    # Finalización
     texto_estado.text("✅ ¡Procesamiento completado!")
     barra.empty()
     
@@ -138,24 +144,16 @@ def procesar_archivos(plantilla, datos):
     output.seek(0)
     return output
 
-# --- 4. INTERFAZ DE CARGA ---
+# --- 5. INTERFAZ DE CARGA ---
 col1, col2 = st.columns(2)
 
 with col1:
     st.info("📂 Paso 1")
-    uploaded_plantilla = st.file_uploader(
-        "Sube Plantilla Novatrans", 
-        type="xlsx", 
-        help="Archivo plantilla vacío."
-    )
+    uploaded_plantilla = st.file_uploader("Sube Plantilla Novatrans", type="xlsx")
 
 with col2:
     st.info("📄 Paso 2")
-    uploaded_datos = st.file_uploader(
-        "Sube Excel de Moeve/Cepsa", 
-        type="xlsx",
-        help="Archivo con los datos descargados."
-    )
+    uploaded_datos = st.file_uploader("Sube Excel de Moeve/Cepsa", type="xlsx")
 
 st.write("---")
 
@@ -175,12 +173,9 @@ if uploaded_plantilla and uploaded_datos:
 else:
     st.warning("⚠️ Por favor, sube ambos archivos para activar el proceso.")
 
-# Pie de página
 st.markdown(
-    """
-    <div style='position: fixed; bottom: 0; width: 100%; text-align: center; color: grey; font-size: 12px;'>
+    """<div style='position: fixed; bottom: 10px; width: 100%; text-align: center; color: #555; font-size: 12px;'>
         Herramienta interna para Novatrans
-    </div>
-    """, 
+    </div>""", 
     unsafe_allow_html=True
 )
