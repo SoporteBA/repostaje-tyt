@@ -4,56 +4,74 @@ import io
 from openpyxl import load_workbook
 from datetime import datetime
 
-# --- 1. CONFIGURACIÓN DE LA PÁGINA ---
+# --- 1. CONFIGURACIÓN Y CONSTANTES ---
 st.set_page_config(
     page_title="T&T | MOEVE > NOVATRANS",
     page_icon="🚛",
     layout="centered"
 )
 
+# Definimos las reglas de negocio al principio para fácil mantenimiento
+MATRICULAS_EXCLUIDAS = {
+    "TJT-001", "TJT-002", "TJT-003", "TJT-004", "TJT-005", "TJT-006", "TJT-007"
+}
+
+# Diccionario para mapear conceptos (Clave: Origen -> Valor: Destino)
+MAPPING_PRODUCTOS = {
+    "DIESEL STAR": "Gasoleo",
+    "ECOBLUE": "AdBlue",
+    "SIN PLOMO": "Gasoil B",
+    "AUTOPISTAS DE PEAJE": "Peaje",
+    "GEST. SERV. AUTOP. ESPAÑA": "Otros"
+}
+
 # --- 2. ESTILOS CSS ---
 st.markdown("""
     <style>
-    /* Ocultar textos en inglés del uploader */
     [data-testid="stFileUploader"] small { display: none; }
     [data-testid="stFileUploaderDropzone"] div div::before { content: "Arrastra y suelta tu archivo aquí"; }
     button[kind="secondary"] { background-color: #fbfbfb; border: 1px solid #d6d6d6; }
+    .footer { position: fixed; bottom: 10px; width: 100%; text-align: center; color: #888; font-size: 12px; }
     </style>
 """, unsafe_allow_html=True)
 
 # --- 3. LOGO Y TÍTULOS ---
-# Usamos 3 columnas para centrar el logo: vacía | logo | vacía
 col_izq, col_cen, col_der = st.columns([1, 2, 1])
-
 with col_cen:
-    # Intenta mostrar el logo, si no está subido aún, no falla
     try:
         st.image("tyt_logo_trans.png", use_container_width=True)
-    except:
-        st.warning("⚠️ Sube la imagen 'tyt_logo_trans.png' a GitHub para ver el logo aquí.")
+    except Exception:
+        st.warning("⚠️ Logo no encontrado ('tyt_logo_trans.png').")
 
 st.markdown("<h1 style='text-align: center;'>Creador de plantilla NOVATRANS</h1>", unsafe_allow_html=True)
-st.markdown("### <div style='text-align: center;'>Herramienta para adaptar Hoja de Cálculo descargada de CEPSA a la plantilla de importación de NOVATRANS</div>", unsafe_allow_html=True)
-st.write("Sube el archivo Excel descargado de la web de Moeve y la plantilla de Novatrans para pasar los datos adaptados, de una hoja a otra")
+st.markdown("### <div style='text-align: center;'>Importador de datos MOEVE/CEPSA</div>", unsafe_allow_html=True)
+st.info("Sube el Excel de Moeve y la Plantilla vacía de Novatrans para cruzar los datos.")
 
 # --- 4. FUNCIÓN DE PROCESAMIENTO ---
 def procesar_archivos(plantilla, datos):
-    # Leer datos
+    # 1. Leer Datos Origen
     try:
+        # header=2 implica que la fila 3 (índice 2) es la cabecera
         df_origen = pd.read_excel(datos, header=2, dtype={'Tarjeta': str})
-    except:
-        st.error("❌ Error: No se puede leer el archivo de Moeve/Cepsa. Verifica que el encabezado esté en la fila 3.")
+    except Exception as e:
+        st.error(f"❌ Error leyendo el archivo de Moeve: {e}")
         return None
 
-    # Leer plantilla
+    # Validación de seguridad: Verificar que tenemos suficientes columnas
+    # Necesitamos acceder hasta el índice 13 (columna 14)
+    if df_origen.shape[1] < 14:
+        st.error(f"❌ El archivo de Moeve parece incompleto. Tiene {df_origen.shape[1]} columnas, pero se requieren al menos 14.")
+        return None
+
+    # 2. Leer Plantilla Destino
     try:
         wb_destino = load_workbook(plantilla)
         ws_destino = wb_destino.active
-    except:
-        st.error("❌ Error: No se puede leer la plantilla de Novatrans.")
+    except Exception as e:
+        st.error(f"❌ Error leyendo la plantilla de Novatrans: {e}")
         return None
 
-    # Limpiar plantilla
+    # 3. Limpiar plantilla (Borrar datos anteriores si los hubiera)
     max_row = ws_destino.max_row
     max_col = ws_destino.max_column
     if max_row > 1:
@@ -61,92 +79,92 @@ def procesar_archivos(plantilla, datos):
             for cell in row:
                 cell.value = None
 
-    # Configuración
+    # 4. Procesamiento
     fila_destino = 2
-    matriculas_excluidas = ["TJT-001", "TJT-002", "TJT-003", "TJT-004", "TJT-005", "TJT-006", "TJT-007"]
-
-    # Barra de progreso
+    
+    # UI: Barra de progreso
     texto_estado = st.empty()
     barra = st.progress(0)
     total_filas = len(df_origen)
 
     for index, row in df_origen.iterrows():
-        # Actualizar barra
-        porcentaje = int((index + 1) / total_filas * 100)
-        barra.progress((index + 1) / total_filas)
-        texto_estado.text(f"Procesando fila {index + 1} de {total_filas} ({porcentaje}%)")
+        # Actualizar UI cada 10 filas o al final para no ralentizar el bucle
+        if index % 10 == 0 or index == total_filas - 1:
+            progreso = (index + 1) / total_filas
+            barra.progress(progreso)
+            texto_estado.text(f"Procesando registro {index + 1} de {total_filas}...")
 
-        # Filtros y lógica
-        matricula_actual = str(row['Matricula']).strip()
-        if matricula_actual in matriculas_excluidas:
+        # A. Filtro Matrícula
+        matricula_actual = str(row.get('Matricula', '')).strip()
+        if matricula_actual in MATRICULAS_EXCLUIDAS:
             continue
 
-        fecha_hora_raw = row['Fecha y hora']
+        # B. Manejo de Fechas (Pandas to_datetime es más robusto)
+        fecha_hora_raw = row.get('Fecha y hora')
         val_fecha = None
         val_hora = None
+        
         if pd.notnull(fecha_hora_raw):
             try:
-                if isinstance(fecha_hora_raw, datetime):
-                    val_fecha = fecha_hora_raw
-                    val_hora = fecha_hora_raw
-                else:
-                    dt_obj = datetime.strptime(str(fecha_hora_raw), "%d/%m/%Y %H:%M:%S")
-                    val_fecha = dt_obj
-                    val_hora = dt_obj
+                dt_obj = pd.to_datetime(fecha_hora_raw, dayfirst=True)
+                val_fecha = dt_obj
+                val_hora = dt_obj # OpenPyXL maneja el formato luego
             except:
-                pass 
+                pass # Si falla el parseo, se queda en None
 
-        tarjeta_valor = str(row['Tarjeta']) if pd.notnull(row['Tarjeta']) else ""
+        # C. Limpieza Tarjeta
+        tarjeta_valor = str(row.get('Tarjeta', ''))
+        if tarjeta_valor == 'nan': tarjeta_valor = ""
         if tarjeta_valor.endswith('.0'): tarjeta_valor = tarjeta_valor[:-2]
 
+        # D. Mapeo de Productos
+        # Usamos iloc para columnas fijas como indicaste que la estructura es estable
+        # Columna 10 (índice 10) es el concepto original
         concepto_original = df_origen.iloc[index, 10]
-        producto_final = concepto_original
-        if pd.notnull(concepto_original):
-            nombre_concepto = str(concepto_original).strip()
-            if nombre_concepto == "DIESEL STAR": producto_final = "Gasoleo"
-            elif nombre_concepto == "ECOBLUE": producto_final = "AdBlue"
-            elif nombre_concepto == "SIN PLOMO": producto_final = "Gasoil B"
-            elif nombre_concepto == "AUTOPISTAS DE PEAJE": producto_final = "Peaje"
-            elif nombre_concepto == "GEST. SERV. AUTOP. ESPAÑA": producto_final = "Otros"
-
-        # Escribir
-        # CAMBIO: Antes column=1 (A), ahora column=2 (B) -> Matrícula
-        ws_destino.cell(row=fila_destino, column=2).value = row['Matricula']
+        nombre_concepto = str(concepto_original).strip() if pd.notnull(concepto_original) else ""
         
-        # CAMBIO: Antes column=2 (B), ahora column=3 (C) -> Producto
+        # .get(clave, valor_por_defecto) busca en el diccionario, si no está, devuelve el original
+        producto_final = MAPPING_PRODUCTOS.get(nombre_concepto, concepto_original)
+
+        # 5. Escritura en Excel (Mapeo de Columnas)
+        # Col 2 (B): Matrícula
+        ws_destino.cell(row=fila_destino, column=2).value = row.get('Matricula')
+        
+        # Col 3 (C): Producto
         ws_destino.cell(row=fila_destino, column=3).value = producto_final
         
-        # CAMBIO: Antes column=3 (C), ahora column=4 (D)
+        # Col 4 (D): Kilómetros/Dato columna 4 origen
         ws_destino.cell(row=fila_destino, column=4).value = df_origen.iloc[index, 4]
         
-        # CAMBIO: Antes column=4 (D), ahora column=5 (E) -> Tarjeta
+        # Col 5 (E): Tarjeta (Texto)
         c_tarjeta = ws_destino.cell(row=fila_destino, column=5)
         c_tarjeta.value = tarjeta_valor
-        c_tarjeta.number_format = '@'
+        c_tarjeta.number_format = '@' # Forzar formato texto
         
-        # Sigue sumando 1 a cada columna sucesiva:
+        # Resto de columnas mapeadas por posición
         ws_destino.cell(row=fila_destino, column=6).value = df_origen.iloc[index, 11]
         ws_destino.cell(row=fila_destino, column=7).value = df_origen.iloc[index, 8]
         ws_destino.cell(row=fila_destino, column=8).value = df_origen.iloc[index, 12]
-        ws_destino.cell(row=fila_destino, column=9).value = df_origen.iloc[index, 13] # Antes era 8
+        ws_destino.cell(row=fila_destino, column=9).value = df_origen.iloc[index, 13]
 
+        # Fechas y Horas
         if val_fecha:
-            # CAMBIO: Antes column=11 (K), ahora column=12 (L)
+            # Col 12 (L): Fecha
             c_f = ws_destino.cell(row=fila_destino, column=12)
             c_f.value = val_fecha
             c_f.number_format = 'dd/mm/yyyy'
-        
-        if val_hora:
-            # CAMBIO: Antes column=12 (L), ahora column=13 (M)
+            
+            # Col 13 (M): Hora
             c_h = ws_destino.cell(row=fila_destino, column=13)
             c_h.value = val_hora
             c_h.number_format = 'hh:mm:ss'
 
         fila_destino += 1
 
-    texto_estado.text("✅ ¡Procesamiento completado!")
-    barra.empty()
+    texto_estado.success("✅ ¡Procesamiento completado con éxito!")
+    barra.empty() # Limpiar barra al finalizar
     
+    # Guardar en memoria
     output = io.BytesIO()
     wb_destino.save(output)
     output.seek(0)
@@ -154,36 +172,34 @@ def procesar_archivos(plantilla, datos):
 
 # --- 5. INTERFAZ DE CARGA ---
 col1, col2 = st.columns(2)
-
 with col1:
-    st.info("📂 Paso 1")
-    uploaded_plantilla = st.file_uploader("Sube Plantilla Novatrans", type="xlsx")
-
+    uploaded_plantilla = st.file_uploader("📂 1. Plantilla Novatrans", type=["xlsx"])
 with col2:
-    st.info("📄 Paso 2")
-    uploaded_datos = st.file_uploader("Sube Excel de Moeve/Cepsa", type="xlsx")
+    uploaded_datos = st.file_uploader("📄 2. Excel Moeve/Cepsa", type=["xlsx"])
 
-st.write("---")
+st.divider()
 
 if uploaded_plantilla and uploaded_datos:
-    if st.button("🚀 Crear Plantilla Importación", type="primary"):
-        with st.spinner('⏳ Adaptando datos para Novatrans...'):
+    # Botón principal
+    if st.button("🚀 Generar Archivo Importación", type="primary", use_container_width=True):
+        with st.spinner('⏳ Procesando datos...'):
             archivo_final = procesar_archivos(uploaded_plantilla, uploaded_datos)
             
             if archivo_final:
-                st.success("¡Archivo generado correctamente!")
+                st.balloons()
                 st.download_button(
-                    label="⬇️ Descargar Archivo para Novatrans",
+                    label="⬇️ Descargar Archivo Resultado",
                     data=archivo_final,
-                    file_name="ImportadorGenerico_RELLENO.xlsx",
-                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                    file_name=f"Importacion_Novatrans_{datetime.now().strftime('%Y%m%d')}.xlsx",
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    use_container_width=True
                 )
 else:
-    st.warning("⚠️ Por favor, sube ambos archivos para activar el proceso.")
+    st.warning("⚠️ Sube ambos archivos para habilitar el generador.")
 
 st.markdown(
-    """<div style='position: fixed; bottom: 10px; width: 100%; text-align: center; color: #555; font-size: 12px;'>
-        Herramienta interna para Tránsitos y Transportes Logísticos
+    """<div class='footer'>
+        Herramienta interna para Tránsitos y Transportes Logísticos | v1.1 Refined
     </div>""", 
     unsafe_allow_html=True
 )
