@@ -110,35 +110,38 @@ def procesar_archivos(plantilla, datos):
             elif nombre_concepto == "GEST. SERV. AUTOP. ESPAÑA": producto_final = "Otros"
 
         # Escribir
-        # CAMBIO: Antes column=1 (A), ahora column=2 (B) -> Matrícula
-        ws_destino.cell(row=fila_destino, column=2).value = row['Matricula']
+        # CORRECCIÓN: Ajustamos +1 a todas las columnas para corregir el desplazamiento a la izquierda.
         
-        # CAMBIO: Antes column=2 (B), ahora column=3 (C) -> Producto
-        ws_destino.cell(row=fila_destino, column=3).value = producto_final
+        # Antes column=2 (B) -> AHORA column=3 (C) -> Matrícula
+        ws_destino.cell(row=fila_destino, column=3).value = row['Matricula']
         
-        # CAMBIO: Antes column=3 (C), ahora column=4 (D)
-        ws_destino.cell(row=fila_destino, column=4).value = df_origen.iloc[index, 4]
+        # Antes column=3 (C) -> AHORA column=4 (D) -> Producto
+        ws_destino.cell(row=fila_destino, column=4).value = producto_final
         
-        # CAMBIO: Antes column=4 (D), ahora column=5 (E) -> Tarjeta
-        c_tarjeta = ws_destino.cell(row=fila_destino, column=5)
+        # Antes column=4 (D) -> AHORA column=5 (E)
+        ws_destino.cell(row=fila_destino, column=5).value = df_origen.iloc[index, 4]
+        
+        # Antes column=5 (E) -> AHORA column=6 (F) -> Tarjeta
+        c_tarjeta = ws_destino.cell(row=fila_destino, column=6)
         c_tarjeta.value = tarjeta_valor
         c_tarjeta.number_format = '@'
         
         # Sigue sumando 1 a cada columna sucesiva:
-        ws_destino.cell(row=fila_destino, column=6).value = df_origen.iloc[index, 11]
-        ws_destino.cell(row=fila_destino, column=7).value = df_origen.iloc[index, 8]
-        ws_destino.cell(row=fila_destino, column=8).value = df_origen.iloc[index, 12]
-        ws_destino.cell(row=fila_destino, column=9).value = df_origen.iloc[index, 13] # Antes era 8
+        ws_destino.cell(row=fila_destino, column=7).value = df_origen.iloc[index, 11] # Antes 6
+        ws_destino.cell(row=fila_destino, column=8).value = df_origen.iloc[index, 8]  # Antes 7
+        ws_destino.cell(row=fila_destino, column=9).value = df_origen.iloc[index, 12] # Antes 8
+        ws_destino.cell(row=fila_destino, column=10).value = df_origen.iloc[index, 13] # Antes 9
 
         if val_fecha:
-            # CAMBIO: Antes column=11 (K), ahora column=12 (L)
-            c_f = ws_destino.cell(row=fila_destino, column=12)
+            # Antes column=12 (L) -> AHORA column=13 (M)
+            # Nota: Saltamos las columnas 11 y 12 en el nuevo mapeo si antes saltábamos la 10 y 11
+            c_f = ws_destino.cell(row=fila_destino, column=13)
             c_f.value = val_fecha
             c_f.number_format = 'dd/mm/yyyy'
         
         if val_hora:
-            # CAMBIO: Antes column=12 (L), ahora column=13 (M)
-            c_h = ws_destino.cell(row=fila_destino, column=13)
+            # Antes column=13 (M) -> AHORA column=14 (N)
+            c_h = ws_destino.cell(row=fila_destino, column=14)
             c_h.value = val_hora
             c_h.number_format = 'hh:mm:ss'
 
